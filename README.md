@@ -5,6 +5,10 @@
 - docker
 - poetry
 
+## Links to services
+
+mlflow : [mlflow](https://huggingface.co/spaces/littlerobinson/mlflow)
+
 ## Deployment
 
 To deploy the project :
