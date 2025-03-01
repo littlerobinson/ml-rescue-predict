@@ -14,7 +14,7 @@ mlflow : [mlflow](https://huggingface.co/spaces/littlerobinson/mlflow)
 To deploy the project :
 
 ```bash
-cd docker
+cd mlflow
 
 # Create local python environment
 poetry install
