@@ -1,0 +1,19 @@
+[project]
+name = "api"
+version = "0.1.0"
+description = "API"
+authors = [
+    {name = "alexandre",email = "2a.alexandre@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard] (>=0.115.10,<0.116.0)",
+    "sqlalchemy (>=2.0.38,<3.0.0)",
+    "pydantic (>=2.10.6,<3.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
