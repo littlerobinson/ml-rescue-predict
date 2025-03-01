@@ -1,6 +1,10 @@
+# MLFLOW
 mlruns
 artifacts
 secrets.sh
+
+# Airflow
+airflow/logs/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
