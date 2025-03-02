@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta
 
 import pandas as pd
 import requests
@@ -49,6 +49,8 @@ def _fetch_accident_data():
         data_ressources = response.json()
         logging.info("Start downloading")
 
+        s3_hook = S3Hook(aws_conn_id="aws_s3")
+
         for resource in data_ressources.get("resources", []):
             file_title = resource.get("title", "noname").lower()
             file_url = resource.get("url", "")
@@ -64,23 +66,29 @@ def _fetch_accident_data():
                 if not filename.endswith(".csv"):
                     filename += ".csv"
                 full_path_to_file = f"/tmp/{filename}"
+                s3_key = f"{S3_PATH}{filename}"
 
-                file_response = requests.get(file_url)
+                if not s3_hook.check_for_key(key=s3_key, bucket_name=S3_BUCKET_NAME):
+                    file_response = requests.get(file_url)
 
-                if file_response.status_code == 200:
-                    with open(full_path_to_file, "wb") as f:
-                        f.write(file_response.content)
+                    if file_response.status_code == 200:
+                        with open(full_path_to_file, "wb") as f:
+                            f.write(file_response.content)
 
-                    s3_hook = S3Hook(aws_conn_id="aws_s3")
-                    s3_hook.load_file(
-                        filename=full_path_to_file,
-                        key=f"{S3_PATH}{filename}",
-                        bucket_name=S3_BUCKET_NAME,
-                        replace=True,
-                    )
-                    logging.info(f"Saved accidents data to S3 with name {filename}")
+                        s3_hook = S3Hook(aws_conn_id="aws_s3")
+                        s3_hook.load_file(
+                            filename=full_path_to_file,
+                            key=f"{S3_PATH}{filename}",
+                            bucket_name=S3_BUCKET_NAME,
+                            replace=True,
+                        )
+                        logging.info(f"Saved accidents data to S3 with name {filename}")
+                    else:
+                        logging.error(f"Failed to download {filename}")
                 else:
-                    logging.error(f"Failed to download {filename}")
+                    logging.info(
+                        f"File {filename} already exists in S3 ({s3_key}), skipping upload."
+                    )
 
     logging.info("fetch accident data finished")
 
