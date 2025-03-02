@@ -92,10 +92,11 @@ with DAG(
     schedule_interval="0 0 30 12 *",  # At 00:00 on day-of-month 30 in December.
 ) as dag:
     logging.info("download_and_upload_raw_data_to_s3")
-    start = BashOperator(task_id="start", bash_command="echo 'Start!'")
-    fetch_weather_data = PythonOperator(
-        task_id="fetch_weather_data",
-        python_callable=_fetch_accident_data,
-        retries=3,
-        retry_delay=timedelta(minutes=10),
-    )
+    with TaskGroup(group_id="accident_branch") as accident_branch:
+        start = BashOperator(task_id="start", bash_command="echo 'Start!'")
+        fetch_weather_data = PythonOperator(
+            task_id="fetch_accident_data",
+            python_callable=_fetch_accident_data,
+            retries=3,
+            retry_delay=timedelta(minutes=10),
+        )
