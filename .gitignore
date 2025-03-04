@@ -6,6 +6,9 @@ secrets.sh
 # Airflow
 airflow/logs/*
 
+# Data
+notebooks/**/*.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
