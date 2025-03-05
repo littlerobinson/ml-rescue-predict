@@ -9,6 +9,12 @@
 
 mlflow : [mlflow](https://huggingface.co/spaces/littlerobinson/mlflow)
 
+## Clone the project
+
+```bash
+git clone git@hf.co:spaces/littlerobinson/mlflow
+```
+
 ## Deployment
 
 To deploy the project :
