@@ -1,9 +1,12 @@
 import csv
 import logging
 from datetime import datetime, timedelta
+import time
 
 import pandas as pd
 import requests
+from bs4 import BeautifulSoup
+
 from s3_to_postgres import S3ToPostgresOperator
 
 from airflow import DAG
@@ -67,7 +70,7 @@ def _fetch_accident_data():
                 if not filename.endswith(".csv"):
                     filename += ".csv"
                 full_path_to_file = f"/tmp/{filename}"
-                s3_key = f"{S3_PATH}{filename}"
+                s3_key = f"{S3_PATH}accidents/{filename}"
 
                 if not s3_hook.check_for_key(key=s3_key, bucket_name=S3_BUCKET_NAME):
                     file_response = requests.get(file_url)
@@ -79,7 +82,7 @@ def _fetch_accident_data():
                         s3_hook = S3Hook(aws_conn_id="aws_default")
                         s3_hook.load_file(
                             filename=full_path_to_file,
-                            key=f"{S3_PATH}{filename}",
+                            key=s3_key,
                             bucket_name=S3_BUCKET_NAME,
                             replace=True,
                         )
@@ -94,7 +97,8 @@ def _fetch_accident_data():
     logging.info("fetch accident data finished")
 
 
-def _fetch_holidays_data(zone="metropole", current_year=None):
+def _fetch_public_holidays_data(zone="metropole", current_year=None):
+    logging.info("fetch public holidays")
     if current_year is None:
         current_year = datetime.now().year
 
@@ -103,7 +107,7 @@ def _fetch_holidays_data(zone="metropole", current_year=None):
 
     all_holidays = {}
 
-    filename = "holidays_data.csv"
+    filename = "public_holidays.csv"
     full_path_to_file = f"/tmp/{filename}"
 
     for year in range(start_year, end_year + 1):
@@ -127,17 +131,198 @@ def _fetch_holidays_data(zone="metropole", current_year=None):
                 writer.writerow([formatted_date, all_holidays[date]])
 
         s3_hook = S3Hook(aws_conn_id="aws_default")
-        s3_key = f"{S3_PATH}{filename}"
+        s3_key = f"{S3_PATH}meta/{filename}"
         if not s3_hook.check_for_key(key=s3_key, bucket_name=S3_BUCKET_NAME):
-            s3_key = f"{S3_PATH}{filename}"
+            s3_key = s3_key
             s3_hook = S3Hook(aws_conn_id="aws_default")
             s3_hook.load_file(
                 filename=full_path_to_file,
-                key=f"{S3_PATH}{filename}",
+                key=s3_key,
                 bucket_name=S3_BUCKET_NAME,
                 replace=True,
             )
-            logging.info(f"Saved holidays data to S3 with name {filename}")
+            logging.info(f"Saved public holidays data to S3 with name {filename}")
+
+
+def _fetch_fire_brigade():
+    logging.info("fetch fire brigade")
+    departments = list(range(1, 96)) + list(range(971, 977))
+    HEADERS = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "X-Requested-With": "XMLHttpRequest",
+    }
+
+    fire_brigades = []
+
+    for dept in departments:
+        dept_str = str(dept).zfill(2)
+        page = 0
+
+        while True:
+            API_URL = f"https://pompierama.com/views/ajax?_wrapper_format=drupal_ajax&recherche={dept_str}&view_name=recherche_caserne&view_display_id=block_1&page={page}"
+            logging.info("fetch fire brigade")
+            try:
+                response = requests.get(API_URL, headers=HEADERS)
+                response.raise_for_status()
+                time.sleep(1)
+
+                data = response.json()
+                html_data = next(
+                    (
+                        item["data"]
+                        for item in data
+                        if "data" in item
+                        and isinstance(item["data"], str)
+                        and item["data"].strip()
+                    ),
+                    None,
+                )
+
+                if not html_data:
+                    break
+
+                soup = BeautifulSoup(html_data, "html.parser")
+                rows = soup.find_all("tr")
+
+                if len(rows) <= 1:
+                    break
+
+                for row in rows[1:]:
+                    cols = row.find_all("td")
+                    if len(cols) >= 3:
+                        fire_brigades.append(
+                            {
+                                "name": cols[0].text.strip(),
+                                "city": cols[1].text.strip(),
+                                "department": cols[2].text.strip(),
+                            }
+                        )
+
+                if soup.find("a", rel="next"):
+                    page += 1
+                else:
+                    break
+
+            except (requests.exceptions.RequestException, Exception):
+                break
+
+    df = pd.DataFrame(fire_brigades)
+    filename = "fire_brigade.csv"
+    full_path_to_file = f"/tmp/{filename}"
+    df.to_csv(full_path_to_file, index=False, encoding="utf-8")
+
+    s3_hook = S3Hook(aws_conn_id="aws_default")
+    s3_key = f"{S3_PATH}meta/{filename}"
+    if not s3_hook.check_for_key(key=s3_key, bucket_name=S3_BUCKET_NAME):
+        s3_hook.load_file(
+            filename=full_path_to_file,
+            key=s3_key,
+            bucket_name=S3_BUCKET_NAME,
+            replace=True,
+        )
+        logging.info(f"Saved holidays data to S3 with name {filename}")
+
+
+def _fetch_school_holidays_data():
+    def get_school_holidays_api(start_year, end_year):
+        url = "https://data.education.gouv.fr/api/records/1.0/search/"
+        params = {
+            "dataset": "fr-en-calendrier-scolaire",
+            "q": "",
+            "rows": 10000,
+            "facet": "annee_scolaire",
+            "facet": "metropole",
+        }
+
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        records = data.get("records", [])
+        holidays = []
+
+        for record in records:
+            fields = record.get("fields", {})
+            school_year = fields.get("annee_scolaire")
+            zone = fields.get("zones")
+            holiday_type = fields.get("description")
+            start_date = fields.get("start_date")
+            end_date = fields.get("end_date")
+
+            if start_year <= int(school_year.split("-")[0]) <= end_year:
+                holidays.append(
+                    {
+                        "school_year": school_year,
+                        "zone": zone,
+                        "type": holiday_type,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                    }
+                )
+
+        return holidays
+
+    def standardize_school_year(year):
+        if "-" not in year:
+            start_year = int(year)
+            return f"{start_year}-{start_year + 1}"
+        return year
+
+    def clean_data(df):
+        def parse_date(date_str):
+            try:
+                return datetime.strptime(date_str, "%Y-%m-%d")
+            except:
+                return None
+
+        df["start_date_dt"] = df["start_date"].apply(parse_date)
+        df["end_date_dt"] = df["end_date"].apply(parse_date)
+
+        df = df[df["start_date_dt"].notna() & df["end_date_dt"].notna()]
+
+        type_mapping = {
+            "vacances de la toussaint": "All Saints",
+            "vacances de noël": "Christmas",
+            "vacances d'hiver": "Winter",
+            "vacances de printemps": "Spring",
+            "vacances d'été": "Summer",
+            "pont de l'ascension": "Ascension",
+        }
+
+        def normalize_type(t):
+            t_lower = t.lower()
+            for key, value in type_mapping.items():
+                if key in t_lower:
+                    return value
+            return t
+
+        df["type"] = df["type"].apply(normalize_type)
+
+        df = df.drop(["start_date_dt", "end_date_dt"], axis=1)
+
+        df["school_year"] = df["school_year"].apply(standardize_school_year)
+
+        return df
+
+    filename = "school_holidays.csv"
+    full_path_to_file = f"/tmp/{filename}"
+    start_year = datetime.now().year - 3
+    end_year = datetime.now().year + 1
+    holidays_data = get_school_holidays_api(start_year, end_year)
+    df = pd.DataFrame(holidays_data)
+    df = clean_data(df)
+    df = df.drop("school_year", axis=1)
+    df.to_csv(full_path_to_file, index=False)
+
+    # Upload to S3
+    s3_hook = S3Hook(aws_conn_id="aws_default")
+    s3_key = f"{S3_PATH}meta/{filename}"
+    if not s3_hook.check_for_key(key=s3_key, bucket_name=S3_BUCKET_NAME):
+        s3_hook.load_file(
+            filename=full_path_to_file,
+            key=s3_key,
+            bucket_name=S3_BUCKET_NAME,
+            replace=True,
+        )
 
 
 with DAG(
@@ -158,14 +343,26 @@ with DAG(
             retry_delay=timedelta(minutes=10),
         )
 
-    with TaskGroup(group_id="holidays_branch") as holidays_branch:
-        fetch_weather_data = PythonOperator(
-            task_id="fetch_holidays_data",
-            python_callable=_fetch_holidays_data,
+    with TaskGroup(group_id="meta_branch") as meta_branch:
+        fetch_public_holidays_data = PythonOperator(
+            task_id="fetch_public_holidays_data",
+            python_callable=_fetch_public_holidays_data,
+            retries=1,
+            retry_delay=timedelta(minutes=10),
+        )
+        fetch_school_holidays_data = PythonOperator(
+            task_id="fetch_school_holidays_data",
+            python_callable=_fetch_school_holidays_data,
+            retries=1,
+            retry_delay=timedelta(minutes=10),
+        )
+        fetch_fire_brigade = PythonOperator(
+            task_id="fetch_fire_brigade",
+            python_callable=_fetch_fire_brigade,
             retries=1,
             retry_delay=timedelta(minutes=10),
         )
 
     end = BashOperator(task_id="end", bash_command="echo 'End!'")
 
-    start >> [accident_branch] >> end
+    start >> [accident_branch, meta_branch] >> end
