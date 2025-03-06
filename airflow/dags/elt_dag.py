@@ -325,18 +325,35 @@ def _fetch_school_holidays_data():
         )
 
 
+def _fetch_weather_history():
+    filename = "weather_history.csv"
+    full_path_to_file = "/opt/airflow/data/meteo_celsius_Quiers_2022_2023.csv"
+
+    # Upload to S3
+    s3_hook = S3Hook(aws_conn_id="aws_default")
+    s3_key = f"{S3_PATH}meta/{filename}"
+    if not s3_hook.check_for_key(key=s3_key, bucket_name=S3_BUCKET_NAME):
+        s3_hook.load_file(
+            filename=full_path_to_file,
+            key=s3_key,
+            bucket_name=S3_BUCKET_NAME,
+            replace=True,
+        )
+
+
 with DAG(
-    "download_and_upload_raw_data_to_s3",
+    "extract_and_load",
     default_args=dag_default_args,
     description="Download a CSV file and load it into an S3 bucket",
     schedule_interval="0 0 30 12 *",  # At 00:00 on day-of-month 30 in December.
+    tags=["ELT", "extract", "load", "bucket"],
 ) as dag:
-    logging.info("download_and_upload_raw_data_to_s3")
+    logging.info("extract_and_load")
 
     start = BashOperator(task_id="start", bash_command="echo 'Start!'")
 
     with TaskGroup(group_id="accident_branch") as accident_branch:
-        fetch_weather_data = PythonOperator(
+        fetch_accident_data = PythonOperator(
             task_id="fetch_accident_data",
             python_callable=_fetch_accident_data,
             retries=1,
@@ -362,7 +379,23 @@ with DAG(
             retries=1,
             retry_delay=timedelta(minutes=10),
         )
+        fetch_weather_history = PythonOperator(
+            task_id="fetch_weather_history",
+            python_callable=_fetch_weather_history,
+            retries=1,
+            retry_delay=timedelta(minutes=10),
+        )
 
     end = BashOperator(task_id="end", bash_command="echo 'End!'")
 
     start >> [accident_branch, meta_branch] >> end
+
+
+with DAG(
+    "transform_raw_data",
+    default_args=dag_default_args,
+    description="Transform raw data o a data for training",
+    schedule_interval="0 0 30 12 *",
+    tags=["ELT", "transform", "OLTP"],
+) as dag:
+    logging.info("transform_raw_data")
