@@ -1,3 +1,4 @@
+import csv
 import logging
 from datetime import datetime, timedelta
 
@@ -49,7 +50,7 @@ def _fetch_accident_data():
         data_ressources = response.json()
         logging.info("Start downloading")
 
-        s3_hook = S3Hook(aws_conn_id="aws_s3")
+        s3_hook = S3Hook(aws_conn_id="aws_default")
 
         for resource in data_ressources.get("resources", []):
             file_title = resource.get("title", "noname").lower()
@@ -75,7 +76,7 @@ def _fetch_accident_data():
                         with open(full_path_to_file, "wb") as f:
                             f.write(file_response.content)
 
-                        s3_hook = S3Hook(aws_conn_id="aws_s3")
+                        s3_hook = S3Hook(aws_conn_id="aws_default")
                         s3_hook.load_file(
                             filename=full_path_to_file,
                             key=f"{S3_PATH}{filename}",
@@ -93,6 +94,52 @@ def _fetch_accident_data():
     logging.info("fetch accident data finished")
 
 
+def _fetch_holidays_data(zone="metropole", current_year=None):
+    if current_year is None:
+        current_year = datetime.now().year
+
+    start_year = current_year - 20
+    end_year = current_year + 5
+
+    all_holidays = {}
+
+    filename = "holidays_data.csv"
+    full_path_to_file = f"/tmp/{filename}"
+
+    for year in range(start_year, end_year + 1):
+        url = f"https://calendrier.api.gouv.fr/jours-feries/{zone}/{year}.json"
+        response = requests.get(url)
+
+        if response.status_code == 200:
+            holidays = response.json()
+            all_holidays.update(holidays)
+
+    if not all_holidays:
+        logging.info("holydays dictionary is empty")
+    else:
+        # Save holidays data as csv
+        with open(full_path_to_file, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["date", "public_holiday"])
+
+            for date in sorted(all_holidays.keys()):
+                formatted_date = date
+                writer.writerow([formatted_date, all_holidays[date]])
+
+        s3_hook = S3Hook(aws_conn_id="aws_default")
+        s3_key = f"{S3_PATH}{filename}"
+        if not s3_hook.check_for_key(key=s3_key, bucket_name=S3_BUCKET_NAME):
+            s3_key = f"{S3_PATH}{filename}"
+            s3_hook = S3Hook(aws_conn_id="aws_default")
+            s3_hook.load_file(
+                filename=full_path_to_file,
+                key=f"{S3_PATH}{filename}",
+                bucket_name=S3_BUCKET_NAME,
+                replace=True,
+            )
+            logging.info(f"Saved holidays data to S3 with name {filename}")
+
+
 with DAG(
     "download_and_upload_raw_data_to_s3",
     default_args=dag_default_args,
@@ -107,9 +154,18 @@ with DAG(
         fetch_weather_data = PythonOperator(
             task_id="fetch_accident_data",
             python_callable=_fetch_accident_data,
-            retries=3,
+            retries=1,
             retry_delay=timedelta(minutes=10),
         )
+
+    with TaskGroup(group_id="holidays_branch") as holidays_branch:
+        fetch_weather_data = PythonOperator(
+            task_id="fetch_holidays_data",
+            python_callable=_fetch_holidays_data,
+            retries=1,
+            retry_delay=timedelta(minutes=10),
+        )
+
     end = BashOperator(task_id="end", bash_command="echo 'End!'")
 
     start >> [accident_branch] >> end
