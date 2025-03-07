@@ -11,8 +11,8 @@ tags_metadata = [
 ]
 
 app = FastAPI(
-    title="🪐 Getaround API",
-    description="API for Getaround",
+    title="🪐 Rescue Predict API",
+    description="API for Rescue Predict ",
     version="0.1",
     contact={
         "name": "Alexandre",

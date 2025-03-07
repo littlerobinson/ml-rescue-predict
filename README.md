@@ -81,5 +81,6 @@ Configure the following connections in Airflow (Admin > Connections):
 source secrets.sh
 cd api
 docker build -t rescue-predict-api .
+chmod +x run.sh
 ./run.sh
 ```

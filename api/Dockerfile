@@ -4,6 +4,8 @@ ENV MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI
 
 ENV PIP_ROOT_USER_ACTION=ignore
 
+EXPOSE $PORT
+
 WORKDIR /app
 
 RUN apt-get update && apt-get clean

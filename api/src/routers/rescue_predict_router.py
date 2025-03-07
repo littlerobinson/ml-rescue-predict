@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Response
 
-import api.src.handlers.rescue_predict_handler as gh
+import src.handlers.rescue_predict_handler as gh
 from src.models.rescue_predict_model import RescuePredictModel
 
 import json
 
 
 router = APIRouter(
-    prefix="/",
-    # tags=["getaround"],
+    # prefix="/",
     responses={404: {"description": "Not found"}},
 )
 
