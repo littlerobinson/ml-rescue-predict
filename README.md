@@ -2,7 +2,7 @@
 
 ## Airflow Configuration 🔐
 
-## Installation & Setup 🚀
+### Installation & Setup 🚀
 
 1. Add AIRFLOW_UID env variable in .env file.
 
@@ -50,7 +50,7 @@ docker build . mlflow_image_name
 # Deploy images on your server
 ````
 
-### Variables
+#### Variables
 
 Set the following variables in the Airflow Admin Interface (Admin > Variables):
 
@@ -72,3 +72,14 @@ Configure the following connections in Airflow (Admin > Connections):
 2. PostgreSQL Connection (`postgres_id`):
    - Conn Type: Postgres
    - Configure with your database credentials
+
+## API
+
+### Installation & Setup 🚀
+
+```bash
+source secrets.sh
+cd api
+docker build -t rescue-predict-api .
+./run.sh
+```
