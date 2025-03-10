@@ -1,6 +1,7 @@
 import csv
 import logging
 from datetime import datetime, timedelta
+import os
 import time
 
 import pandas as pd
@@ -359,6 +360,7 @@ with DAG(
             retries=1,
             retry_delay=timedelta(minutes=10),
         )
+        [fetch_accident_data]
 
     with TaskGroup(group_id="meta_branch") as meta_branch:
         fetch_public_holidays_data = PythonOperator(
@@ -385,17 +387,8 @@ with DAG(
             retries=1,
             retry_delay=timedelta(minutes=10),
         )
+        [fetch_public_holidays_data, fetch_school_holidays_data, fetch_fire_brigade, fetch_weather_history]
 
     end = BashOperator(task_id="end", bash_command="echo 'End!'")
 
     start >> [accident_branch, meta_branch] >> end
-
-
-with DAG(
-    "transform_raw_data",
-    default_args=dag_default_args,
-    description="Transform raw data o a data for training",
-    schedule_interval="0 0 30 12 *",
-    tags=["ELT", "transform", "OLTP"],
-) as dag:
-    logging.info("transform_raw_data")
