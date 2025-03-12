@@ -5,6 +5,8 @@ secrets.sh
 
 # Airflow
 airflow/logs/*
+airflow/s3_files/*
+airflow/secrets/*
 
 # Research Data
 notebooks/**/*.csv

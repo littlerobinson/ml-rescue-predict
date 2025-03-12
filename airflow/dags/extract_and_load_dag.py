@@ -133,95 +133,95 @@ def _fetch_public_holidays_data(zone="metropole", current_year=None):
 
         s3_hook = S3Hook(aws_conn_id="aws_default")
         s3_key = f"{S3_PATH}meta/{filename}"
-        if not s3_hook.check_for_key(key=s3_key, bucket_name=S3_BUCKET_NAME):
-            s3_key = s3_key
-            s3_hook = S3Hook(aws_conn_id="aws_default")
-            s3_hook.load_file(
-                filename=full_path_to_file,
-                key=s3_key,
-                bucket_name=S3_BUCKET_NAME,
-                replace=True,
-            )
-            logging.info(f"Saved public holidays data to S3 with name {filename}")
-
-
-def _fetch_fire_brigade():
-    logging.info("fetch fire brigade")
-    departments = list(range(1, 96)) + list(range(971, 977))
-    HEADERS = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "X-Requested-With": "XMLHttpRequest",
-    }
-
-    fire_brigades = []
-
-    for dept in departments:
-        dept_str = str(dept).zfill(2)
-        page = 0
-
-        while True:
-            API_URL = f"https://pompierama.com/views/ajax?_wrapper_format=drupal_ajax&recherche={dept_str}&view_name=recherche_caserne&view_display_id=block_1&page={page}"
-            logging.info("fetch fire brigade")
-            try:
-                response = requests.get(API_URL, headers=HEADERS)
-                response.raise_for_status()
-                time.sleep(1)
-
-                data = response.json()
-                html_data = next(
-                    (
-                        item["data"]
-                        for item in data
-                        if "data" in item
-                        and isinstance(item["data"], str)
-                        and item["data"].strip()
-                    ),
-                    None,
-                )
-
-                if not html_data:
-                    break
-
-                soup = BeautifulSoup(html_data, "html.parser")
-                rows = soup.find_all("tr")
-
-                if len(rows) <= 1:
-                    break
-
-                for row in rows[1:]:
-                    cols = row.find_all("td")
-                    if len(cols) >= 3:
-                        fire_brigades.append(
-                            {
-                                "name": cols[0].text.strip(),
-                                "city": cols[1].text.strip(),
-                                "department": cols[2].text.strip(),
-                            }
-                        )
-
-                if soup.find("a", rel="next"):
-                    page += 1
-                else:
-                    break
-
-            except (requests.exceptions.RequestException, Exception):
-                break
-
-    df = pd.DataFrame(fire_brigades)
-    filename = "fire_brigade.csv"
-    full_path_to_file = f"/tmp/{filename}"
-    df.to_csv(full_path_to_file, index=False, encoding="utf-8")
-
-    s3_hook = S3Hook(aws_conn_id="aws_default")
-    s3_key = f"{S3_PATH}meta/{filename}"
-    if not s3_hook.check_for_key(key=s3_key, bucket_name=S3_BUCKET_NAME):
+        s3_hook = S3Hook(aws_conn_id="aws_default")
         s3_hook.load_file(
             filename=full_path_to_file,
             key=s3_key,
             bucket_name=S3_BUCKET_NAME,
             replace=True,
         )
-        logging.info(f"Saved holidays data to S3 with name {filename}")
+        logging.info(f"Saved public holidays data to S3 with name {filename}")
+
+
+def _fetch_fire_brigade():
+    def fetch_all(filename, full_path_to_file):
+        logging.info("fetch fire brigade")
+        departments = list(range(1, 96)) + list(range(971, 977))
+        HEADERS = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "X-Requested-With": "XMLHttpRequest",
+        }
+
+        fire_brigades = []
+
+        for dept in departments:
+            dept_str = str(dept).zfill(2)
+            page = 0
+
+            while True:
+                API_URL = f"https://pompierama.com/views/ajax?_wrapper_format=drupal_ajax&recherche={dept_str}&view_name=recherche_caserne&view_display_id=block_1&page={page}"
+                logging.info("fetch fire brigade")
+                try:
+                    response = requests.get(API_URL, headers=HEADERS)
+                    response.raise_for_status()
+                    time.sleep(1)
+
+                    data = response.json()
+                    html_data = next(
+                        (
+                            item["data"]
+                            for item in data
+                            if "data" in item
+                            and isinstance(item["data"], str)
+                            and item["data"].strip()
+                        ),
+                        None,
+                    )
+
+                    if not html_data:
+                        break
+
+                    soup = BeautifulSoup(html_data, "html.parser")
+                    rows = soup.find_all("tr")
+
+                    if len(rows) <= 1:
+                        break
+
+                    for row in rows[1:]:
+                        cols = row.find_all("td")
+                        if len(cols) >= 3:
+                            fire_brigades.append(
+                                {
+                                    "name": cols[0].text.strip(),
+                                    "city": cols[1].text.strip(),
+                                    "department": cols[2].text.strip(),
+                                }
+                            )
+
+                    if soup.find("a", rel="next"):
+                        page += 1
+                    else:
+                        break
+
+                except (requests.exceptions.RequestException, Exception):
+                    break
+
+        df = pd.DataFrame(fire_brigades)
+        df.to_csv(full_path_to_file, index=False, encoding="utf-8")
+
+    filename = "fire_brigade.csv"
+    full_path_to_file = f"/tmp/{filename}"
+    s3_hook = S3Hook(aws_conn_id="aws_default")
+    s3_key = f"{S3_PATH}meta/{filename}"
+    if not s3_hook.check_for_key(key=s3_key, bucket_name=S3_BUCKET_NAME):
+        fetch_all(filename, full_path_to_file)
+        s3_hook.load_file(
+            filename=full_path_to_file,
+            key=s3_key,
+            bucket_name=S3_BUCKET_NAME,
+            replace=True,
+        )
+        logging.info(f"Saved public holidays data to S3 with name {filename}")
 
 
 def _fetch_school_holidays_data():
@@ -262,57 +262,69 @@ def _fetch_school_holidays_data():
 
         return holidays
 
-    def standardize_school_year(year):
-        if "-" not in year:
-            start_year = int(year)
-            return f"{start_year}-{start_year + 1}"
-        return year
-
-    def clean_data(df):
-        def parse_date(date_str):
-            try:
-                return datetime.strptime(date_str, "%Y-%m-%d")
-            except:
-                return None
-
-        df["start_date_dt"] = df["start_date"].apply(parse_date)
-        df["end_date_dt"] = df["end_date"].apply(parse_date)
-
-        df = df[df["start_date_dt"].notna() & df["end_date_dt"].notna()]
-
-        type_mapping = {
-            "vacances de la toussaint": "All Saints",
-            "vacances de noël": "Christmas",
-            "vacances d'hiver": "Winter",
-            "vacances de printemps": "Spring",
-            "vacances d'été": "Summer",
-            "pont de l'ascension": "Ascension",
-        }
-
-        def normalize_type(t):
-            t_lower = t.lower()
-            for key, value in type_mapping.items():
-                if key in t_lower:
-                    return value
-            return t
-
-        df["type"] = df["type"].apply(normalize_type)
-
-        df = df.drop(["start_date_dt", "end_date_dt"], axis=1)
-
-        df["school_year"] = df["school_year"].apply(standardize_school_year)
-
-        return df
-
     filename = "school_holidays.csv"
     full_path_to_file = f"/tmp/{filename}"
     start_year = datetime.now().year - 3
     end_year = datetime.now().year + 1
+    logging.info(f"Fetch school holidays for {start_year} to {end_year}")
     holidays_data = get_school_holidays_api(start_year, end_year)
     df = pd.DataFrame(holidays_data)
-    df = clean_data(df)
     df = df.drop("school_year", axis=1)
     df.to_csv(full_path_to_file, index=False)
+
+    # Upload to S3
+    s3_hook = S3Hook(aws_conn_id="aws_default")
+    s3_key = f"{S3_PATH}meta/{filename}"
+
+    s3_hook.load_file(
+        filename=full_path_to_file,
+        key=s3_key,
+        bucket_name=S3_BUCKET_NAME,
+        replace=True,
+    )
+    logging.info(f"Saved school holidays data to S3 with name {filename}")
+
+
+# Function to fetch data from the API
+def _fetch_communes():
+    base_url = "https://geo.api.gouv.fr/departements"
+    save_dir = "/tmp"
+    os.makedirs(save_dir, exist_ok=True)
+
+    all_communes = []
+
+    # Loop through all departments (1 to 95 for metropolitan France)
+    for dept in range(1, 96):
+        url = f"{base_url}/{dept}/communes"
+        params = {"fields": "nom,codeRegion,code,population", "format": "json"}
+
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            communes = response.json()
+            all_communes.extend(communes)
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error fetching data for department {dept}: {e}")
+
+    # Extract commune names and postal codes
+    data = []
+    for commune in all_communes:
+        nom_commune = commune["nom"]
+        code_region = commune["codeRegion"]
+        code = commune["code"]
+        population = commune["population"]
+        data.append([nom_commune, code_region, code, population])
+
+    # Create DataFrame
+    df_communes = pd.DataFrame(
+        data, columns=["commune", "code_region", "code", "population"]
+    )
+
+    # Save as CSV
+    filename = "all_communes.csv"
+    full_path_to_file = f"/tmp/{filename}"
+    save_path = os.path.join(save_dir, "all_communes.csv")
+    df_communes.to_csv(save_path, index=False, encoding="utf-8")
 
     # Upload to S3
     s3_hook = S3Hook(aws_conn_id="aws_default")
@@ -324,6 +336,7 @@ def _fetch_school_holidays_data():
             bucket_name=S3_BUCKET_NAME,
             replace=True,
         )
+        logging.info(f"Communes file saved successfully: {save_path}")
 
 
 def _fetch_weather_history():
@@ -387,7 +400,19 @@ with DAG(
             retries=1,
             retry_delay=timedelta(minutes=10),
         )
-        [fetch_public_holidays_data, fetch_school_holidays_data, fetch_fire_brigade, fetch_weather_history]
+        fetch_communes = PythonOperator(
+            task_id="fetch_communes",
+            python_callable=_fetch_communes,
+            retries=1,
+            retry_delay=timedelta(minutes=10),
+        )
+        [
+            fetch_public_holidays_data,
+            fetch_school_holidays_data,
+            fetch_fire_brigade,
+            fetch_weather_history,
+            fetch_communes,
+        ]
 
     end = BashOperator(task_id="end", bash_command="echo 'End!'")
 
