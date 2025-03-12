@@ -146,7 +146,8 @@ def _fetch_public_holidays_data(zone="metropole", current_year=None):
 def _fetch_fire_brigade():
     def fetch_all(filename, full_path_to_file):
         logging.info("fetch fire brigade")
-        departments = list(range(1, 96)) + list(range(971, 977))
+        # departments = list(range(1, 96)) + list(range(971, 977))
+        departments = [77]
         HEADERS = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "X-Requested-With": "XMLHttpRequest",
@@ -294,7 +295,8 @@ def _fetch_communes():
     all_communes = []
 
     # Loop through all departments (1 to 95 for metropolitan France)
-    for dept in range(1, 96):
+    # for dept in range(1, 96):
+    for dept in [77]:
         url = f"{base_url}/{dept}/communes"
         params = {"fields": "nom,codeRegion,code,population", "format": "json"}
 

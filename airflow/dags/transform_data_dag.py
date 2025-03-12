@@ -221,6 +221,7 @@ def _group_data(ti):
             "an": date_range.year,
         }
     )
+    date_df["date"] = pd.to_datetime(date_df["date"]).dt.tz_localize("UTC")
 
     # 📌 Mark public days
     date_df["public_holidays"] = date_df["date"].isin(df_public_holidays["date"])
@@ -242,6 +243,8 @@ def _group_data(ti):
         product(date_df.itertuples(index=False), df_communes["com"]),
         columns=["date_info", "com"],
     )
+
+    logging.warning(df_full.head())
 
     df_full[
         [
