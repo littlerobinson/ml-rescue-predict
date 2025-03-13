@@ -16,3 +16,9 @@ router = APIRouter(
 async def predict(data: RescuePredictModel):
     response = await gh.predict(data)
     return Response(content=json.dumps(response), media_type="application/json")
+
+
+@router.get("/fetchdata", tags=["machine-learning"])
+async def fetchdata():
+    response = await gh.fetchdata()
+    return Response(content=json.dumps(response), media_type="application/json")
