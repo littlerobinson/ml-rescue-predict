@@ -24,7 +24,7 @@ class S3ToSnowflakeOperator(BaseOperator):
         key: str,
         table: str,
         schema: str,
-        snowflake_conn_id: str = "snowflake_default",
+        snowflake_conn_id: str = "snowflake_rescue_predict_db",
         aws_conn_id: str = "aws_default",
         **kwargs,
     ) -> None:
@@ -37,19 +37,14 @@ class S3ToSnowflakeOperator(BaseOperator):
         self.aws_conn_id = aws_conn_id
 
     def execute(self, context):
-        # Create snowflake connection
-        ctx = snowflake.connector.connect(
-            user="alex",
-            password="Halt5-Dumpling2-Radar4-Pasted3-Volumes9",
-            account="UGPSTAX-HM40418",
-            session_parameters={
-                "QUERY_TAG": "EndOfMonthFinancials",
-            },
-        )
-        ctx.cursor().execute("CREATE OR REPLACE DATABASE rescue_predict_db")
-        ctx.cursor().execute("USE DATABASE rescue_predict_db")
-        ctx.cursor().execute("CREATE SCHEMA IF NOT EXISTS public")
-        ctx.cursor().execute("USE SCHEMA public")
+        # 🔹 Connexion Snowflake via SnowflakeHook
+        snowflake_hook = SnowflakeHook(snowflake_conn_id="snowflake_rescue_predict_db")
+        conn = snowflake_hook.get_conn()
+        cursor = conn.cursor()
+        cursor.execute("CREATE OR REPLACE DATABASE rescue_predict_db")
+        cursor.execute("USE DATABASE rescue_predict_db")
+        cursor.execute("CREATE SCHEMA IF NOT EXISTS public")
+        cursor.execute("USE SCHEMA public")
         """Execute the transfer of data from S3 to Snowflake."""
         task_instance = context["task_instance"]
         execution_date = context["execution_date"]
@@ -77,7 +72,7 @@ class S3ToSnowflakeOperator(BaseOperator):
         df["dag_id"] = [dag_id] * row_count
         df["task_id"] = [task_id] * row_count
 
-        write_pandas(conn=ctx, df=df, auto_create_table=True, table_name=self.table)
+        write_pandas(conn=conn, df=df, auto_create_table=True, table_name=self.table)
 
         # Envoyer les métriques dans XCom
         task_instance.xcom_push(key="rows_inserted", value=row_count)

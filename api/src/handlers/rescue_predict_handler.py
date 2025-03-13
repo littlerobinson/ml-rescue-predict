@@ -1,13 +1,17 @@
-import snowflake.connector
-from fastapi.responses import JSONResponse
-import pandas as pd
+import os
 
+import pandas as pd
+import snowflake.connector
+from dotenv import load_dotenv
+from fastapi.responses import JSONResponse
 from src.models.rescue_predict_model import RescuePredictModel
 
+load_dotenv()
+
 ctx = snowflake.connector.connect(
-    user="alex",
-    password="Halt5-Dumpling2-Radar4-Pasted3-Volumes9",
-    account="UGPSTAX-HM40418",
+    user=os.getenv("SNOWFLAKE_USER"),
+    password=os.getenv("SNOWFLAKE_PASSWORD"),
+    account=os.getenv("SNOWFLAKE_ACCOUNT"),
     session_parameters={
         "QUERY_TAG": "EndOfMonthFinancials",
     },

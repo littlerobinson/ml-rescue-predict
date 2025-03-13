@@ -1,5 +1,7 @@
 FROM python:3.12.7-slim-bookworm AS rescue-predict
 
+ENV MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI
+
 ENV PIP_ROOT_USER_ACTION=ignore
 
 EXPOSE $PORT
