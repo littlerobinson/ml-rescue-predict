@@ -1,13 +1,16 @@
 import csv
 import logging
-from datetime import datetime, timedelta
 import os
+import re
 import time
+from collections import defaultdict
+from datetime import datetime, timedelta
+from itertools import product
 
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-
+from s3_to_snowflake import S3ToSnowflakeOperator
 from s3_to_postgres import S3ToPostgresOperator
 
 from airflow import DAG
@@ -357,18 +360,352 @@ def _fetch_weather_history():
         )
 
 
+def _download_file_from_s3(bucket_name, s3_key, local_dir):
+    """
+    Download a file from an S3 bucket to a local directory.
+
+    :param bucket_name: The name of the S3 bucket.
+    :param s3_key: The key of the file in the S3 bucket.
+    :param local_dir: The local directory where the file will be saved.
+    """
+    # Initialize the S3 hook
+    s3_hook = S3Hook(aws_conn_id="aws_default")
+
+    # Ensure the local directory exists
+    os.makedirs(local_dir, exist_ok=True)
+
+    # Define the full local path including the filename
+    local_path = os.path.join(local_dir, os.path.basename(s3_key))
+
+    # Check if the file already exists locally
+    if os.path.exists(local_path):
+        print(f"File already exists locally at {local_path}. Skipping download.")
+        return
+
+    # Check if the file exists in the S3 bucket
+    if s3_hook.check_for_key(key=s3_key, bucket_name=bucket_name):
+        # Download the file
+        try:
+            s3_hook.get_key(key=s3_key, bucket_name=bucket_name).download_file(
+                local_path
+            )
+            print(f"File downloaded successfully to {local_path}")
+        except PermissionError as e:
+            print(f"Permission error: {e}")
+    else:
+        print(f"File {s3_key} does not exist in the bucket {bucket_name}")
+
+
+def _fetch_files(type="accidents"):
+    logging.info("Starting to fetch files...")
+    s3_hook = S3Hook(aws_conn_id="aws_default")
+    local_dir = "/tmp/s3_files"
+
+    os.makedirs(local_dir, exist_ok=True)
+
+    s3_keys = s3_hook.list_keys(bucket_name=S3_BUCKET_NAME, prefix=f"{S3_PATH}{type}/")
+    logging.info(f"S3 Keys: {s3_keys}")
+
+    if not s3_keys:
+        raise FileNotFoundError(
+            f"No files found in {S3_PATH}{type}/ in {S3_BUCKET_NAME}."
+        )
+
+    for s3_key in s3_keys:
+        logging.info(f"Local_path: {local_dir}")
+        _download_file_from_s3(S3_BUCKET_NAME, s3_key, local_dir)
+        logging.info(f"Downloaded {s3_key} to {local_dir}")
+
+
+def _group_accident_data(ti, nb_years=2):
+    logging.info(f"Starting group accident files for {nb_years} years...")
+    local_dir = "/tmp/s3_files"
+    pattern = re.compile(r"car.*(\d{4})")
+    files_by_year = defaultdict(list)
+
+    files = []
+
+    # Check if directory exists
+    if not os.path.exists(local_dir):
+        logging.error(f"Directory {local_dir} does not exist.")
+        return files
+
+    # Iterate over files in the directory
+    for file in os.listdir(local_dir):
+        match = pattern.search(file)
+        if match:
+            year = int(match.group(1))
+            files_by_year[year].append(file)
+
+    # Find the two most recent files
+    if files_by_year:
+        sorted_years = sorted(files_by_year.keys(), reverse=True)
+        recent_files = []
+
+        for year in sorted_years:
+            recent_files.extend(files_by_year[year])
+            if len(recent_files) >= nb_years:
+                break
+
+        files = recent_files[:nb_years]
+        logging.info(f"Files list --> {files}")
+        # Read and concatenate CSV files
+        dataframes = []
+        for file in files:
+            file_path = os.path.join(local_dir, file)
+            logging.info(f"Processing file: {file_path}")
+
+            # Check if the path is a file
+            if os.path.isfile(file_path):
+                df = pd.read_csv(file_path, sep=";", dtype=str)
+                dataframes.append(df)
+
+        if dataframes:
+            concatenated_df = pd.concat(dataframes, ignore_index=True)
+            # Create a new 'id' column based on 'Accident_Id' or 'Num_Acc'
+            concatenated_df["id"] = concatenated_df["Accident_Id"].combine_first(
+                concatenated_df["Num_Acc"]
+            )
+            # Drop the original 'Accident_Id' and 'Num_Acc' columns
+            concatenated_df.drop(columns=["Accident_Id", "Num_Acc"], inplace=True)
+
+            df_grouped = (
+                concatenated_df.groupby(["jour", "mois", "an", "dep", "com"])
+                .size()
+                .reset_index(name="nombre_d_accidents")
+            )
+
+            # Filter only on one department
+            df_filtered = df_grouped[df_grouped["dep"] == "77"]
+
+            # Save the concatenated DataFrame to a shared location or pass it using XCom
+            output_path = "/tmp/s3_files/concatenated_accidents.csv"
+            df_filtered.to_csv(output_path, index=False)
+
+            logging.info(f"Concatenated CSV saved to {output_path}")
+            # Push the output path to XCom for other tasks to use
+            ti.xcom_push(key="concatenated_accidents_csv_path", value=output_path)
+            logging.info(
+                f"XCom push with key: 'concatenated_accidents_csv_path' and value: {output_path}"
+            )
+
+        else:
+            logging.warning("No data to concatenate.")
+    else:
+        logging.warning("No files matched the pattern.")
+
+
+def _group_data(ti):
+    logging.info("Enrich data...")
+    path_communes = "/tmp/s3_files/all_communes.csv"
+    path_public_holidays = "/tmp/s3_files/public_holidays.csv"
+    path_school_holidays = "/tmp/s3_files/school_holidays.csv"
+
+    logging.info("Commune transformations")
+    df_communes = pd.read_csv(path_communes)
+    df_communes.rename(columns={"code": "com"}, inplace=True)
+
+    logging.info("Public holidays transformations")
+    df_public_holidays = pd.read_csv(path_public_holidays, sep=",")
+    df_public_holidays["date"] = pd.to_datetime(df_public_holidays["date"])
+
+    logging.info("School holidays transformations")
+    df_school_holidays = pd.read_csv(path_school_holidays, sep=",")
+    df_school_holidays["start_date"] = pd.to_datetime(df_school_holidays["start_date"])
+    df_school_holidays["end_date"] = pd.to_datetime(df_school_holidays["end_date"])
+
+    logging.info("Accidents transformations")
+    all_accidents_filename = ti.xcom_pull(
+        task_ids="transformation_branch.group_accident_data",
+        key="concatenated_accidents_csv_path",
+    )
+
+    logging.info(f"Accidents transformations filename: {all_accidents_filename}")
+
+    if all_accidents_filename is None:
+        logging.error("XCom value for 'concatenated_accidents_csv_path' is None.")
+
+    df = pd.read_csv(all_accidents_filename)
+    df_grouped = (
+        df.groupby(["jour", "mois", "an", "dep", "com"])
+        .size()
+        .reset_index(name="nombre_d_accidents")
+    )
+
+    # Generate all dates from existing years
+    logging.info("Generate all dates from existing years")
+    years = df_grouped["an"].unique()
+    start_date = f"{min(years)}-01-01"
+    end_date = f"{max(years)}-12-31"
+    date_range = pd.date_range(start=start_date, end=end_date)
+
+    # Create a DataFrame from the date range
+    logging.info("Create a DataFrame from the date range")
+    date_df = pd.DataFrame(
+        {
+            "date": date_range,
+            "jour": date_range.day,
+            "mois": date_range.month,
+            "an": date_range.year,
+        }
+    )
+    date_df["date"] = pd.to_datetime(date_df["date"]).dt.tz_localize("UTC")
+
+    # 📌 Mark public days
+    date_df["public_holidays"] = date_df["date"].isin(df_public_holidays["date"])
+
+    # 🏫 Mark vacation days for each zone
+    logging.info("Mark vacation days for each zone")
+    for zone in ["zone_a", "zone_b", "zone_c"]:
+        date_df[zone] = date_df["date"].apply(
+            lambda d: any(
+                (d >= row["start_date"])
+                and (d <= row["end_date"])
+                and (zone in row["zone"])
+                for _, row in df_school_holidays.iterrows()
+            )
+        )
+
+    date_df.drop(columns=["date"], inplace=True)
+    df_full = pd.DataFrame(
+        product(date_df.itertuples(index=False), df_communes["com"]),
+        columns=["date_info", "com"],
+    )
+
+    logging.warning(df_full.head())
+
+    df_full[
+        [
+            "jour",
+            "mois",
+            "an",
+            "public_holidays",
+            "zone_a",
+            "zone_b",
+            "zone_c",
+        ]
+    ] = pd.DataFrame(df_full["date_info"].tolist(), index=df_full.index)
+    df_full.drop(columns=["date_info"], inplace=True)
+    df_full["dep"] = 77
+    df_accidents = pd.read_csv("/tmp/s3_files/concatenated_accidents.csv", sep=",")
+    df_accidents["com"] = df_accidents["com"].astype(str)
+    df_full["com"] = df_full["com"].astype(str)
+    df_accidents["mois"] = df_accidents["mois"].astype(str).str.zfill(2)
+    df_full["mois"] = df_full["mois"].astype(str).str.zfill(2)
+    df_full.to_csv("/tmp/s3_files/df_full.csv")
+    df_final = df_full.merge(
+        df_accidents, on=["jour", "mois", "an", "dep", "com"], how="left"
+    )
+
+    # 🔄 Remplacer les NaN par 0 pour les jours sans accident
+    df_final["nombre_d_accidents"] = (
+        df_final["nombre_d_accidents"].fillna(0).astype(int)
+    )
+    df_final.to_csv("/tmp/s3_files/df_final.csv", index=False)
+
+
+def _add_weather_history():
+    df_weather_history = pd.read_csv("/tmp/s3_files/weather_history.csv")
+    # Clean up the dt_iso column to remove the time offset and “UTC”.
+    df_weather_history["dt_iso"] = df_weather_history["dt_iso"].str.extract(
+        r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})"
+    )
+    # Convert to date format (keeps only YYYY-MM-DD)
+    df_weather_history["date"] = pd.to_datetime(df_weather_history["dt_iso"]).dt.date
+    # Aggregate data by day
+    df_weather_history_by_day = (
+        df_weather_history.groupby("date")
+        .agg(
+            {
+                "temp": "mean",
+                "feels_like": "mean",
+                "temp_min": "min",
+                "temp_max": "max",
+                "pressure": "mean",
+                "humidity": "mean",
+                "wind_speed": "mean",
+                "clouds_all": "mean",
+            }
+        )
+        .reset_index()
+    )
+    output_path = "/tmp/s3_files/weather_history_by_day.csv"
+    df_weather_history_by_day.to_csv(output_path, index=False)
+
+
+def _create_final_dataset():
+    # 📥 Charger les données d'accidents
+    df_accidents = pd.read_csv("/tmp/s3_files/concatenated_accidents.csv", sep=",")
+
+    # 🛠 Vérifier la présence des colonnes essentielles
+    assert all(col in df_accidents.columns for col in ["jour", "mois", "an"]), (
+        "Colonnes 'jour', 'mois', 'an' manquantes !"
+    )
+
+    # 🔢 Convertir "jour", "mois", "an" en entiers
+    df_accidents["jour"] = df_accidents["jour"].astype(int)
+    df_accidents["mois"] = df_accidents["mois"].astype(int)
+    df_accidents["an"] = df_accidents["an"].astype(int)
+
+    # 🗓️ Créer une colonne "date" au format YYYY-MM-DD
+    df_accidents["date"] = pd.to_datetime(
+        df_accidents[["an", "mois", "jour"]].astype(str).agg("-".join, axis=1),
+        format="%Y-%m-%d",
+    )
+
+    # 📥 Charger les données météo
+    df_meteo = pd.read_csv("/tmp/s3_files/weather_history_by_day.csv")
+
+    # 🗓️ Convertir "date" en datetime
+    df_meteo["date"] = pd.to_datetime(df_meteo["date"])
+
+    # 🎯 Ne garder que les colonnes météo nécessaires
+    cols_meteo = [
+        "date",
+        "temp",
+        "feels_like",
+        "temp_min",
+        "temp_max",
+        "pressure",
+        "humidity",
+        "wind_speed",
+        "clouds_all",
+    ]
+    df_meteo = df_meteo[cols_meteo]
+
+    # 📊 Fusionner les datasets sur la colonne "date"
+    df_final = df_accidents.merge(df_meteo, on="date", how="left")
+
+    # 💾 Enregistrer en UTF-8 avec le bon séparateur
+    filename = "training_ml.csv"
+    full_path_to_file = f"/tmp/s3_files/{filename}"
+    df_final.to_csv(full_path_to_file, index=False, sep=",", encoding="utf-8")
+    # Upload to S3
+    s3_hook = S3Hook(aws_conn_id="aws_default")
+    s3_key = f"{S3_PATH}db/{filename}"
+    s3_hook.load_file(
+        filename=full_path_to_file,
+        key=s3_key,
+        bucket_name=S3_BUCKET_NAME,
+        replace=True,
+    )
+    logging.info(f"Finale dataset for ML training saved: {s3_key}")
+
+
 with DAG(
-    "extract_and_load",
+    "elt_dag",
     default_args=dag_default_args,
-    description="Download a CSV file and load it into an S3 bucket",
-    schedule_interval="0 0 30 12 *",  # At 00:00 on day-of-month 30 in December.
-    tags=["ELT", "extract", "load", "bucket"],
+    description="Extract, load and transform data for training",
+    schedule_interval="0 0 30 12 *",
+    tags=["ELT"],
 ) as dag:
-    logging.info("extract_and_load")
+    logging.info("transform_raw_data")
 
     start = BashOperator(task_id="start", bash_command="echo 'Start!'")
 
-    with TaskGroup(group_id="accident_branch") as accident_branch:
+    with TaskGroup(
+        group_id="extract_load_accident_branch"
+    ) as extract_load_accident_branch:
         fetch_accident_data = PythonOperator(
             task_id="fetch_accident_data",
             python_callable=_fetch_accident_data,
@@ -377,7 +714,7 @@ with DAG(
         )
         [fetch_accident_data]
 
-    with TaskGroup(group_id="meta_branch") as meta_branch:
+    with TaskGroup(group_id="extract_load_meta_branch") as extract_load_meta_branch:
         fetch_public_holidays_data = PythonOperator(
             task_id="fetch_public_holidays_data",
             python_callable=_fetch_public_holidays_data,
@@ -416,6 +753,54 @@ with DAG(
             fetch_communes,
         ]
 
+    with TaskGroup(group_id="fetch_data_branch") as fetch_data_branch:
+        accident_data = PythonOperator(
+            task_id="accident_data", python_callable=_fetch_files, op_args=["accidents"]
+        )
+        meta_data = PythonOperator(
+            task_id="meta_data", python_callable=_fetch_files, op_args=["meta"]
+        )
+        [accident_data, meta_data]
+
+    with TaskGroup(group_id="transformation_branch") as transformation_branch:
+        group_accident_data = PythonOperator(
+            task_id="group_accident_data",
+            python_callable=_group_accident_data,
+            provide_context=True,
+        )
+        group_data = PythonOperator(
+            task_id="group_data", python_callable=_group_data, provide_context=True
+        )
+        add_weather_history = PythonOperator(
+            task_id="add_weather_history", python_callable=_add_weather_history
+        )
+        create_final_dataset = PythonOperator(
+            task_id="create_final_dataset", python_callable=_create_final_dataset
+        )
+        transfer_to_snowflake = S3ToSnowflakeOperator(
+            task_id="transfer_s3_to_snowflake",
+            bucket=S3_BUCKET_NAME,
+            key=f"{S3_PATH}db/training_ml.csv",
+            schema="public",
+            table="accidents",
+            snowflake_conn_id="snowflake_default",
+            aws_conn_id="aws_default",
+        )
+        (
+            group_accident_data
+            >> group_data
+            >> add_weather_history
+            >> create_final_dataset
+            >> transfer_to_snowflake
+        )
+
     end = BashOperator(task_id="end", bash_command="echo 'End!'")
 
-    start >> [accident_branch, meta_branch] >> end
+    (
+        start
+        >> [extract_load_accident_branch, extract_load_meta_branch]
+        >> fetch_data_branch
+        >> transformation_branch
+        >> end
+    )
+    # start >> [transformation_branch] >> end
