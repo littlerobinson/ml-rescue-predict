@@ -593,15 +593,15 @@ def _group_data(ti):
     df_accidents["mois"] = df_accidents["mois"].astype(str).str.zfill(2)
     df_full["mois"] = df_full["mois"].astype(str).str.zfill(2)
     df_full.to_csv("/tmp/s3_files/df_full.csv")
-    df_final = df_full.merge(
+    df_accidents_all = df_full.merge(
         df_accidents, on=["jour", "mois", "an", "dep", "com"], how="left"
     )
 
     # 🔄 Remplacer les NaN par 0 pour les jours sans accident
-    df_final["nombre_d_accidents"] = (
-        df_final["nombre_d_accidents"].fillna(0).astype(int)
+    df_accidents_all["nombre_d_accidents"] = (
+        df_accidents_all["nombre_d_accidents"].fillna(0).astype(int)
     )
-    df_final.to_csv("/tmp/s3_files/df_final.csv", index=False)
+    df_accidents_all.to_csv("/tmp/s3_files/df_accidents_all.csv", index=False)
 
 
 def _add_weather_history():
@@ -635,7 +635,7 @@ def _add_weather_history():
 
 def _create_final_dataset():
     # 📥 Charger les données d'accidents
-    df_accidents = pd.read_csv("/tmp/s3_files/concatenated_accidents.csv", sep=",")
+    df_accidents = pd.read_csv("/tmp/s3_files/df_accidents_all.csv", sep=",")
 
     # 🛠 Vérifier la présence des colonnes essentielles
     assert all(col in df_accidents.columns for col in ["jour", "mois", "an"]), (
