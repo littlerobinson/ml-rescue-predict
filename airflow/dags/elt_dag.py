@@ -568,9 +568,14 @@ def _group_data(ti):
 
     date_df.drop(columns=["date"], inplace=True)
     df_full = pd.DataFrame(
-        product(date_df.itertuples(index=False), df_communes["com"]),
+        product(
+            date_df.itertuples(index=False),
+            df_communes["com"],
+        ),
         columns=["date_info", "com"],
     )
+
+    df_full = df_full.merge(df_communes[["com", "population"]], on="com", how="left")
 
     logging.warning(df_full.head())
 
