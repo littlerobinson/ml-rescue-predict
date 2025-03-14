@@ -268,7 +268,7 @@ def _fetch_school_holidays_data():
 
     filename = "school_holidays.csv"
     full_path_to_file = f"/tmp/{filename}"
-    start_year = datetime.now().year - 3
+    start_year = datetime.now().year - 4
     end_year = datetime.now().year + 1
     logging.info(f"Fetch school holidays for {start_year} to {end_year}")
     holidays_data = get_school_holidays_api(start_year, end_year)
@@ -511,8 +511,17 @@ def _group_data(ti):
 
     logging.info("School holidays transformations")
     df_school_holidays = pd.read_csv(path_school_holidays, sep=",")
-    df_school_holidays["start_date"] = pd.to_datetime(df_school_holidays["start_date"])
-    df_school_holidays["end_date"] = pd.to_datetime(df_school_holidays["end_date"])
+    df_school_holidays["zone"] = (
+        df_school_holidays["zone"]
+        .str.lower()  # Convertir en minuscule
+        .str.replace(" ", "_")  # Remplacer les espaces par des underscores
+    )
+    df_school_holidays["start_date"] = pd.to_datetime(
+        df_school_holidays["start_date"]
+    ).dt.tz_convert("UTC")
+    df_school_holidays["end_date"] = pd.to_datetime(
+        df_school_holidays["end_date"]
+    ).dt.tz_convert("UTC")
 
     logging.info("Accidents transformations")
     all_accidents_filename = ti.xcom_pull(
@@ -551,9 +560,17 @@ def _group_data(ti):
     )
     date_df["date"] = pd.to_datetime(date_df["date"]).dt.tz_localize("UTC")
 
+    # Convertion in UTC date for compatibility
+    df_public_holidays["date"] = df_public_holidays["date"].dt.tz_localize("UTC")
+
     # 📌 Mark public days
     date_df["public_holidays"] = date_df["date"].isin(df_public_holidays["date"])
 
+    logging.warning(date_df["date"].dtype)
+    logging.warning(df_school_holidays["start_date"].dtype)
+    logging.warning(df_school_holidays["end_date"].dtype)
+
+    logging.warning(print(df_school_holidays[["start_date", "end_date"]].head()))
     # 🏫 Mark vacation days for each zone
     logging.info("Mark vacation days for each zone")
     for zone in ["zone_a", "zone_b", "zone_c"]:
@@ -567,6 +584,7 @@ def _group_data(ti):
         )
 
     date_df.drop(columns=["date"], inplace=True)
+
     df_full = pd.DataFrame(
         product(
             date_df.itertuples(index=False),
@@ -577,7 +595,7 @@ def _group_data(ti):
 
     df_full = df_full.merge(df_communes[["com", "population"]], on="com", how="left")
 
-    logging.warning(df_full.head())
+    logging.info(df_full.head())
 
     df_full[
         [

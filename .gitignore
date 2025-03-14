@@ -11,6 +11,9 @@ airflow/secrets/*
 # Research Data
 notebooks/**/*.csv
 
+# OSX
+.DS_Store
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
