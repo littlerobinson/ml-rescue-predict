@@ -36,7 +36,9 @@ mlflow : [mlflow](https://huggingface.co/spaces/littlerobinson/mlflow)
 
 ## Deployment
 
-To deploy the project :
+### MLFlow
+
+To deploy the MLFlow project:
 
 ```bash
 cd mlflow
