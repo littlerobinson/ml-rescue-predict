@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  mlflow-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mlflow
+    ports:
+      - "7860:7860"
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_ARTIFACT_S3_URI: ${AWS_ARTIFACT_S3_URI}
+      BACKEND_STORE_URI: ${BACKEND_STORE_URI}
+    network_mode: host

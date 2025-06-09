@@ -3,6 +3,18 @@
 ## Airflow Configuration 🔐
 
 ### Installation & Setup 🚀
+0. Deps
+
+```bash
+# Set up env
+conda create --prefix .conda python=3.13
+conda activate .conda
+python -m pip install pandas scikit-learn plotly poetry xgboost nbformat
+# Create key
+openssl req -newkey rsa:2048 -nodes -keyout private.key -out csr.csr # CN=localhost:8080
+openssl x509 -req -in csr.csr -signkey private.key -out certificate.pem
+
+```
 
 1. Add AIRFLOW_UID env variable in .env file.
 
@@ -11,16 +23,18 @@ cd airflow
 echo -e "AIRFLOW_UID=$(id -u)" > .env
 ```
 
-2. Start the Airflow services:
+2. Download the EC2 key to airflow/ssh_keys/amazon.pem
+
+3. Start the Airflow services:
 
 ```bash
 docker compose up airflow-init
-docker-compose up --build
+docker compose up --build
 ```
 
 4. Access Airflow web interface:
 
-````
+
 http://localhost:8080
 Username: airflow
 Password: airflow
@@ -36,44 +50,18 @@ mlflow : [mlflow](https://huggingface.co/spaces/littlerobinson/mlflow)
 
 ## Deployment
 
-### MLFlow
-
-To deploy the MLFlow project:
+To deploy the project :
 
 ```bash
 cd mlflow
 
-# Create local python environment
-poetry install
-
-# Build docker image
-docker build . mlflow_image_name
-
 # Deploy images on your server
+docker compose up
 ````
 
 #### Variables
-
-Set the following variables in the Airflow Admin Interface (Admin > Variables):
-
-```
-AWS_DEFAULT_REGION    # Your AWS region (e.g., eu-west-1)
-WEATHERMAP_API        # Your WeatherMap API key
-S3BucketName          # Your S3 bucket name
-```
-
-### Connections
-
-Configure the following connections in Airflow (Admin > Connections):
-
-1. AWS Connection (`aws_id`):
-
-   - Conn Type: Amazon Web Services
-   - Configure with your AWS credentials
-
-2. PostgreSQL Connection (`postgres_id`):
-   - Conn Type: Postgres
-   - Configure with your database credentials
+- change airflow/variables/connections.json.base with your secrets, copy it to airflow/variables/connections.json
+- check airflow/variables/variables.json
 
 ## API
 

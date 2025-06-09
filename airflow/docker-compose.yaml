@@ -75,6 +75,9 @@ x-airflow-common: &airflow-common
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    - ${AIRFLOW_PROJ_DIR:-.}/variables/variables.json:/opt/airflow/variables.json
+    - ${AIRFLOW_PROJ_DIR:-.}/variables/connections.json:/opt/airflow/connections.json
+    - ${AIRFLOW_PROJ_DIR:-.}/ssh_keys:/opt/airflow/ssh_keys
     - ./data:/opt/airflow/data
     - ./s3_files:/tmp/s3_files
   user: "${AIRFLOW_UID:-50000}:0"
@@ -168,6 +171,7 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    network_mode: host
 
   airflow-triggerer:
     <<: *airflow-common
@@ -251,6 +255,7 @@ services:
     user: "0:0"
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}:/sources
+    network_mode: host
 
   airflow-cli:
     <<: *airflow-common
@@ -264,6 +269,7 @@ services:
       - bash
       - -c
       - airflow
+    network_mode: host
 
   # You can enable flower by adding "--profile flower" option e.g. docker-compose --profile flower up
   # or by explicitly targeted on the command line e.g. docker-compose up flower.

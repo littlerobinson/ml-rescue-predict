@@ -13,6 +13,9 @@ RUN usermod -u 1000 airflow
 RUN chmod 400 /opt/airflow/jedha-lead-certification-project.pem \
     && chown airflow /opt/airflow/jedha-lead-certification-project.pem
 
+COPY scripts/ /opt/airflow/scripts/
+RUN chmod +x /opt/airflow/scripts/init_airflow.sh
+
 # Switch back to airflow user
 USER airflow
 
@@ -22,3 +25,5 @@ RUN pip install -r requirements.txt
 
 ADD requirements.txt .
 RUN pip install apache-airflow==${AIRFLOW_VERSION} -r requirements.txt
+
+ENTRYPOINT  ["/opt/airflow/scripts/init_airflow.sh"]
