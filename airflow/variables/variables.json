@@ -1,0 +1,15 @@
+{
+    "S3BucketName": "s3://rescue-predict/",
+    "S3Path": "lead_final_project/",
+    "JENKINS_URL": "",
+    "JENKINS_USER": "",
+    "JENKINS_TOKEN": "",
+    "JENKINS_JOB_NAME": "",
+    "KEY_PAIR_NAME": "ml-rescue-key",
+    "KEY_PATH": "/opt/airflow/ssh_keys/amazon.pem",
+    "AMI_ID": "",
+    "SECURITY_GROUP_ID": "",
+    "INSTANCE_TYPE": "",
+    "MLFLOW_TRACKING_URI": "http://localhost:7860",
+    "MLFLOW_EXPERIMENT_ID": "ml-rescue-predict"
+}

@@ -22,7 +22,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.utils.task_group import TaskGroup
 
 # Globals variables
-OPENWEATHERMAP_API = Variable.get("OPENWEATHERMAP_API")
+# OPENWEATHERMAP_API = Variable.get("OPENWEATHERMAP_API")
 S3_BUCKET_NAME = Variable.get("S3BucketName")
 S3_PATH = Variable.get("S3Path")
 DATASET_ACCIDENT_ID = "53698f4ca3a729239d2036df"
