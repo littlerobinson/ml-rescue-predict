@@ -254,7 +254,7 @@ with DAG(
                 export SNOWFLAKE_SCHEMA="{SNOWFLAKE_SCHEMA}"
                 export SNOWFLAKE_DATABASE="{SNOWFLAKE_DATABASE}"
                 export SNOWFLAKE_ROLE="{SNOWFLAKE_ROLE}"
-                git clone git@github.com:littlerobinson/ml-rescue-predict.git
+                git clone https://github.com/littlerobinson/ml-rescue-predict.git
                 cd ml-rescue-predict/training
                 docker build -t ml-rescue-predict-training .
                 cp run.sh.example run.sh
