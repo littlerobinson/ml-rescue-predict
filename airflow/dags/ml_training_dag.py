@@ -44,11 +44,19 @@ MLFLOW_LOGGED_MODEL = Variable.get("MLFLOW_LOGGED_MODEL")
 AWS_ACCESS_KEY_ID = aws_access_key_id
 AWS_SECRET_ACCESS_KEY = aws_secret_access_key
 
-DB_USER = snowflake_conn.login
-DB_PASSWORD = snowflake_conn.password
-DB_HOST = snowflake_conn.host
-DB_PORT = snowflake_conn.port
-DB_NAME = snowflake_conn.schema
+SNOWFLAKE_USER = Variable.get("SNOWFLAKE_USER")
+SNOWFLAKE_PASSWORD = Variable.get("SNOWFLAKE_PASSWORD")
+SNOWFLAKE_ACCOUNT = Variable.get("SNOWFLAKE_ACCOUNT")
+SNOWFLAKE_WAREHOUSE = Variable.get("SNOWFLAKE_WAREHOUSE")
+SNOWFLAKE_SCHEMA = Variable.get("SNOWFLAKE_SCHEMA")
+SNOWFLAKE_DATABASE = Variable.get("SNOWFLAKE_DATABASE")
+SNOWFLAKE_ROLE = ""
+
+# DB_USER = snowflake_conn.login
+# DB_PASSWORD = snowflake_conn.password
+# DB_HOST = snowflake_conn.host
+# DB_PORT = snowflake_conn.port
+# DB_NAME = snowflake_conn.schema
 
 
 if not all([JENKINS_URL, JENKINS_USER, JENKINS_TOKEN]):
@@ -231,14 +239,15 @@ with DAG(
                 export MLFLOW_TRACKING_URI={MLFLOW_TRACKING_URI}
                 export MLFLOW_EXPERIMENT_ID={MLFLOW_EXPERIMENT_ID}
                 export MLFLOW_LOGGED_MODEL={MLFLOW_LOGGED_MODEL}
-                export MLFLOW_EXPERIMENT_NAME="automatic-fraud-detection"
+                export MLFLOW_EXPERIMENT_NAME="jedha-lead"
                 export AWS_ACCESS_KEY_ID={AWS_ACCESS_KEY_ID}
                 export AWS_SECRET_ACCESS_KEY={AWS_SECRET_ACCESS_KEY}
-                export DB_HOST={DB_HOST}
-                export DB_USER={DB_USER}
-                export DB_PASSWORD={DB_PASSWORD}
-                export DB_PORT={DB_PORT}
-                export DB_NAME={DB_NAME}
+                export SNOWFLAKE_USER={SNOWFLAKE_USER}
+                export SNOWFLAKE_PASSWORD={SNOWFLAKE_PASSWORD}
+                export SNOWFLAKE_WAREHOUSE={SNOWFLAKE_WAREHOUSE}
+                export SNOWFLAKE_SCHEMA={SNOWFLAKE_SCHEMA}
+                export SNOWFLAKE_DATABASE={SNOWFLAKE_DATABASE}
+                export SNOWFLAKE_ROLE={SNOWFLAKE_ROLE}
                 git clone git@github.com:littlerobinson/ml-rescue-predict.git
                 cd ml-rescue-predict/training
                 docker build -t ml-rescue-predict-training .
