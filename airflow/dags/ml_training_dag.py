@@ -242,18 +242,18 @@ with DAG(
                 # export SNOWFLAKE_DATABASE={snowflake_conn.database}
                 # export SNOWFLAKE_ROLE={snowflake_conn.role}
                 command = f"""
-                export MLFLOW_TRACKING_URI={MLFLOW_TRACKING_URI}
-                export MLFLOW_EXPERIMENT_ID={MLFLOW_EXPERIMENT_ID}
-                export MLFLOW_LOGGED_MODEL={MLFLOW_LOGGED_MODEL}
+                export MLFLOW_TRACKING_URI="{MLFLOW_TRACKING_URI}"
+                export MLFLOW_EXPERIMENT_ID="{MLFLOW_EXPERIMENT_ID}"
+                export MLFLOW_LOGGED_MODEL="{MLFLOW_LOGGED_MODEL}"
                 export MLFLOW_EXPERIMENT_NAME="jedha-lead"
-                export AWS_ACCESS_KEY_ID={AWS_ACCESS_KEY_ID}
-                export AWS_SECRET_ACCESS_KEY={AWS_SECRET_ACCESS_KEY}
-                export SNOWFLAKE_USER={SNOWFLAKE_USER}
-                export SNOWFLAKE_PASSWORD={SNOWFLAKE_PASSWORD}
-                export SNOWFLAKE_WAREHOUSE={SNOWFLAKE_WAREHOUSE}
-                export SNOWFLAKE_SCHEMA={SNOWFLAKE_SCHEMA}
-                export SNOWFLAKE_DATABASE={SNOWFLAKE_DATABASE}
-                export SNOWFLAKE_ROLE={SNOWFLAKE_ROLE}
+                export AWS_ACCESS_KEY_ID="{AWS_ACCESS_KEY_ID}"
+                export AWS_SECRET_ACCESS_KEY="{AWS_SECRET_ACCESS_KEY}"
+                export SNOWFLAKE_USER="{SNOWFLAKE_USER}"
+                export SNOWFLAKE_PASSWORD="{SNOWFLAKE_PASSWORD}"
+                export SNOWFLAKE_WAREHOUSE="{SNOWFLAKE_WAREHOUSE}"
+                export SNOWFLAKE_SCHEMA="{SNOWFLAKE_SCHEMA}"
+                export SNOWFLAKE_DATABASE="{SNOWFLAKE_DATABASE}"
+                export SNOWFLAKE_ROLE="{SNOWFLAKE_ROLE}"
                 git clone git@github.com:littlerobinson/ml-rescue-predict.git
                 cd ml-rescue-predict/training
                 docker build -t ml-rescue-predict-training .
