@@ -11,14 +11,15 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from s3_to_snowflake import S3ToSnowflakeOperator
-from s3_to_postgres import S3ToPostgresOperator
+# from s3_to_postgres import S3ToPostgresOperator
 
 from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.hooks.postgres import PostgresHook
+
+# from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.utils.task_group import TaskGroup
 
 # Globals variables
