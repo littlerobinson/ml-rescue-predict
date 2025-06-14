@@ -1,16 +1,16 @@
 #!/bin/bash
-# export $(grep -v '^#' .env | xargs)
-docker run -e SNOWFLAKE_USER=$SNOWFLAKE_USER \
-            -e SNOWFLAKE_PASSWORD=$SNOWFLAKE_PASSWORD \
-            -e SNOWFLAKE_ACCOUNT=$SNOWFLAKE_ACCOUNT \
-            -e SNOWFLAKE_WAREHOUSE=$SNOWFLAKE_WAREHOUSE \
-            -e SNOWFLAKE_SCHEMA=$SNOWFLAKE_SCHEMA \
-            -e SNOWFLAKE_DATABASE=$SNOWFLAKE_DATABASE \
-            -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-            -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-            -e MLFLOW_EXPERIMENT_NAME="jedha-lead" \
-            -e MLFLOW_EXPERIMENT_ID=2 \
-            -e MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI \
-            -e MLFLOW_LOGGED_MODEL=$MLFLOW_LOGGED_MODEL \
-            -v $(pwd):/home \
-            ml-rescue-predict-training
+echo "Current directory: $(pwd)"
+docker run -e SNOWFLAKE_USER="$SNOWFLAKE_USER" \
+           -e SNOWFLAKE_PASSWORD="$SNOWFLAKE_PASSWORD" \
+           -e SNOWFLAKE_ACCOUNT="$SNOWFLAKE_ACCOUNT" \
+           -e SNOWFLAKE_WAREHOUSE="$SNOWFLAKE_WAREHOUSE" \
+           -e SNOWFLAKE_SCHEMA="$SNOWFLAKE_SCHEMA" \
+           -e SNOWFLAKE_DATABASE="$SNOWFLAKE_DATABASE" \
+           -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+           -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+           -e MLFLOW_EXPERIMENT_NAME="jedha-lead" \
+           -e MLFLOW_EXPERIMENT_ID=2 \
+           -e MLFLOW_TRACKING_URI="$MLFLOW_TRACKING_URI" \
+           -e MLFLOW_LOGGED_MODEL="$MLFLOW_LOGGED_MODEL" \
+           -v "$(pwd)":/home \
+           ml-rescue-predict-training
