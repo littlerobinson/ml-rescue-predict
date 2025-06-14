@@ -1,7 +1,8 @@
-mlflow
+mlflow==2.20.0
 scikit-learn
 pandas
 boto3
 pytest
 python-dotenv
 psycopg2-binary
+snowflake-connector-python

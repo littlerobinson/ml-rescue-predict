@@ -24,4 +24,4 @@ COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Set the default command to run the Python application
-CMD ["python", "app/train.py"]
+CMD ["python", "app/training.py"]

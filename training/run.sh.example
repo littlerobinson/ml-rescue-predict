@@ -1,14 +1,16 @@
-export $(cat .env | xargs)
-docker run -e DB_USER=$DB_USER \
-            -e DB_PASSWORD=$DB_PASSWORD \
-            -e DB_HOST=$DB_HOST \
-            -e DB_PORT=$DB_PORT \
-            -e DB_NAME=$DB_NAME \
+#!/bin/bash
+export $(grep -v '^#' .env | xargs)
+docker run -e SNOWFLAKE_USER=$SNOWFLAKE_USER \
+            -e SNOWFLAKE_PASSWORD=$SNOWFLAKE_PASSWORD \
+            -e SNOWFLAKE_ACCOUNT=$SNOWFLAKE_ACCOUNT \
+            -e SNOWFLAKE_WAREHOUSE=$SNOWFLAKE_WAREHOUSE \
+            -e SNOWFLAKE_SCHEMA=$SNOWFLAKE_SCHEMA \
+            -e SNOWFLAKE_DATABASE=$SNOWFLAKE_DATABASE \
             -e AWS_ACCESS_KEY_ID="xxx" \
             -e AWS_SECRET_ACCESS_KEY="xxx" \
-            -e MLFLOW_EXPERIMENT_NAME="ml-rescue-predict" \
+            -e MLFLOW_EXPERIMENT_NAME="xxx" \
             -e MLFLOW_EXPERIMENT_ID=1 \
             -e MLFLOW_TRACKING_URI=$MLFLOW_TRACKING_URI \
             -e MLFLOW_LOGGED_MODEL=$MLFLOW_LOGGED_MODEL \
             -v $(pwd):/home \
-            ml-rescue-predict
+            ml-rescue-predict-training
