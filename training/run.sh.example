@@ -1,5 +1,5 @@
 #!/bin/bash
-export $(grep -v '^#' .env | xargs)
+# export $(grep -v '^#' .env | xargs)
 docker run -e SNOWFLAKE_USER=$SNOWFLAKE_USER \
             -e SNOWFLAKE_PASSWORD=$SNOWFLAKE_PASSWORD \
             -e SNOWFLAKE_ACCOUNT=$SNOWFLAKE_ACCOUNT \
