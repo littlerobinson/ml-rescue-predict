@@ -234,7 +234,13 @@ with DAG(
                 ssh_client.connect(
                     hostname=public_ip, username="ubuntu", pkey=private_key
                 )
-
+                # TODO : change with connection variables
+                # export SNOWFLAKE_USER={snowflake_conn.login}
+                # export SNOWFLAKE_PASSWORD={snowflake_conn.password}
+                # export SNOWFLAKE_WAREHOUSE={snowflake_conn.warehouse}
+                # export SNOWFLAKE_SCHEMA={snowflake_conn.schema}
+                # export SNOWFLAKE_DATABASE={snowflake_conn.database}
+                # export SNOWFLAKE_ROLE={snowflake_conn.role}
                 command = f"""
                 export MLFLOW_TRACKING_URI={MLFLOW_TRACKING_URI}
                 export MLFLOW_EXPERIMENT_ID={MLFLOW_EXPERIMENT_ID}
